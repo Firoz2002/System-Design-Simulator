@@ -1,0 +1,120 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id                      String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId                  String   @db.ObjectId
+  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type                    String
+  provider                String
+  providerAccountId       String
+  refresh_token           String?
+  access_token            String?
+  expires_at              Int?
+  token_type              String?
+  scope                   String?
+  id_token                String?
+  session_state           String?
+  refresh_token_expires_in Int?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  sessionToken String   @unique
+  userId       String   @db.ObjectId
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expires      DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model User {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  email             String   @unique
+  name              String?
+  bio               String?
+  image             String?
+  password          String?
+  emailVerified     DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  resetToken        String?
+  resetTokenExpiry  DateTime?
+
+  accounts          Account[]
+  sessions          Session[]
+  workspaces        WorkspaceMember[]
+}
+
+model Workspace {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  createdAt DateTime @default(now())
+  members   WorkspaceMember[]
+}
+
+model WorkspaceMember {
+  id          String        @id @default(auto()) @map("_id") @db.ObjectId
+  role        WorkspaceRole @default(MEMBER)
+  userId      String        @db.ObjectId
+  workspaceId String        @db.ObjectId
+
+  user      User      @relation(fields: [userId], references: [id])
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+
+  @@unique([userId, workspaceId])
+}
+
+enum WorkspaceRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum NodeType {
+  CLIENT            // Fixed
+  SERVER            // Upgradable CPU/RAM/Disk
+  FIREWALL          // Maybe Upgradable (High CPU = faster filtering)
+  LOAD_BALANCER     // Maybe Upgradable (High CPU = more throughput)
+  EXTERNAL_STORAGE  // High Disk, Low CPU
+}
+
+model Node {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  label       String?  // Custom name given by user e.g., "Auth DB"
+  description String?
+  type        NodeType
+  posX        Float    // POSITION (Crucial for the game board)
+  posY        Float    // POSITION (Crucial for the game board)
+  config      Json
+  
+  // Relations for edges where this node is the source
+  outgoingEdges Edge[] @relation("SourceNode")
+  
+  // Relations for edges where this node is the target
+  incomingEdges Edge[] @relation("TargetNode")
+}
+
+model Edge {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  saveStateId String
+  
+  sourceId    String   @db.ObjectId
+  targetId    String   @db.ObjectId
+  
+  source      Node     @relation("SourceNode", fields: [sourceId], references: [id], onDelete: Cascade)
+  target      Node     @relation("TargetNode", fields: [targetId], references: [id], onDelete: Cascade)
+}
